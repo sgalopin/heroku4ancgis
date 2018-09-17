@@ -66,5 +66,9 @@ heroku local web
 
 ## Exemple de fichier .env
 ```
-export MONGODB_URI="..."
+export MONGODB_DBUSER="mlabdbuser"
+export MONGODB_DBPASSWORD="mlabdbpassword"
+export MONGODB_SHORTURI="mlabhost:mlabport/database"
+export MONGODB_URI="mongodb://$MONGODB_DBUSER:$MONGODB_DBPASSWORD@$MONGODB_SHORTURI"
+export MONGOLAB_URI="$MONGODB_URI"
 ```
