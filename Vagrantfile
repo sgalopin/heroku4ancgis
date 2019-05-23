@@ -98,19 +98,62 @@ Vagrant.configure("2") do |config|
     # MongoDB
     apt-get install -y mongodb
 
-	# Git
-	apt-get install -y git
+	  # Heroku
+	  #snap install --classic heroku # snap server is very unstable in this moment.
+	  curl https://cli-assets.heroku.com/install.sh | sh # It contains its own node.js
+    heroku plugins:install heroku-repo # Install the Heroku Repo plugin (useful to reset the git remote repo).
 
-	# Heroku
-	#snap install --classic heroku # snap server is very unstable in this moment.
-	curl https://cli-assets.heroku.com/install.sh | sh # It contains its own node.js
+    # Git
+	  apt-get install -y git
+    cd ~ && git clone https://github.com/sgalopin/ancgis.git
+    cd ~/ancgis
+    git remote add heroku https://git.heroku.com/ancgis.git # Can also be done via the heroku's "create" command
+    git remote set-url --push origin no_push
 
   SHELL
 
-  # Provisions for the ".env" file
-  config.vm.provision "file", source: "./.env", destination: "/var/tmp/.env", run: "always"
-  config.vm.provision "shell", privileged: false, run: "always", inline: <<-SHELL
-    sudo mv /var/tmp/.env ~/.env
-  SHELL
+  # The following provisions are only run when called explicitly
+  if ARGV.include? '--provision-with'
+
+    # Provision "create"
+    config.vm.provision "create", type: "shell", privileged: false, inline: <<-SHELL
+      heroku login # You must create an account on heroku before playing this command
+      heroku create ancgis
+      heroku addons:create mongolab:sandbox -a ancgis
+      heroku ps:scale web=1 # Activate a single free dyno
+    SHELL
+
+    # Provision "test"
+    config.vm.provision "test", type: "shell", privileged: false, inline: <<-SHELL
+      cd ~/ancgis/application && npm install && npm run build
+      # Get the MONGODB_URI env variable
+      source ~/ancgis/application/.env
+      # Set the MONGOLAB_URI env variable for heroku
+      MONGOLAB_URI="$MONGODB_URI"
+      heroku local web
+    SHELL
+
+    # Provision "populate-db"
+    config.vm.provision "populate-db", type: "shell", privileged: false, inline: <<-SHELL
+      /bin/bash ~/ancgis/shell/populate-db.sh
+    SHELL
+
+    # Provision "deploy"
+    config.vm.provision "deploy", type: "shell", privileged: false, inline: <<-SHELL
+      cd ~/ancgis
+      git fetch origin
+      git pull
+      git subtree push --prefix application heroku master
+      heroku open -a ancgis # Ouvre le navigateur à l'adresse https://ancgis.herokuapp.com
+    SHELL
+
+    # Provision "deploy"
+    config.vm.provision "update-src", type: "shell", privileged: false, inline: <<-SHELL
+      cd ~/ancgis
+      git fetch origin
+      git pull
+    SHELL
+
+  end
 
 end

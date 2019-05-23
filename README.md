@@ -1,54 +1,57 @@
 # Heroku 4 AncGIS
 Vm pour le déploiement de AncGIS sur la plateforme Heroku
 
-## Exemple de création de l'application
+## Mode opératoire
 
-#### Récupération des sources
+#### 1- Créer/lancer la machine virtuelle
 ```
-cd ~
-git clone https://github.com/sgalopin/ancgis.git
-```
-
-#### Création de l'application
-```
-cd ancgis/application
-heroku login # Vous devez créer un compte sur heroku avant de jouer cette commande
-heroku create ancgis
-heroku addons:create mongolab:sandbox -a ancgis
+vagrant up
 ```
 
-#### Déploiement de l'application sur Heroku
+#### 2- Synchroniser les fichiers
+Dans une autre console (à laisser en arrière-plan) lancer la commande suivante:
 ```
-git remote add heroku https://git.heroku.com/ancgis.git # Si ce n'est pas fait par la commande create
-git subtree push --prefix application heroku master
-heroku ps:scale web=1 # Active un seul dyno gratuit
-heroku open -a ancgis # Ouvre le navigateur à l'adresse https://ancgis.herokuapp.com
+vagrant rsync-auto
 ```
 
-## Exemple de re-déploiement de l'application
+#### 3- Création de l'application via heroku
+Cela ne doit être fait qu'une seule fois dans la vie de l'application.
+```
+vagrant provision --provision-with create
+```
 
-Prérequis:
-- L'application a déjà été créée et déployée via la VM.
+#### 4- Mise à jour des sources
+```
+vagrant provision --provision-with update-src
+```
 
-#### Récupération des sources
+#### 5- Configurer les variables d'environnement (fichier .env)
+- Créer des fichiers .env à partir des fichiers .env.dist dans les répertoires suivants (ou vérifier qu'ils soient à jour):
+  - ~/ancgis/application/
+  - ~/ancgis/shell/
+- Editer le fichier "~/ancgis/.gitignore" et supprimer la ligne suivante:
+  - /application/.env
+- Commiter le fichier sur la branche master afin de le pousser dans le repository de heroku:
 ```
 cd ~/ancgis
-git fetch origin
-git pull
+git add application/.env
+git status
+git commit -am "fichier .env"
 ```
 
-#### Déploiement de l'application sur Heroku
+#### 6- Tester l'application localement
 ```
-git subtree push --prefix application heroku master
-heroku open -a ancgis # Ouvre le navigateur à l'adresse https://ancgis.herokuapp.com
+vagrant provision --provision-with test
 ```
 
-## Exemple de provisionnement de la base de donnée
+#### 7- Déploiement de l'application sur Heroku
 ```
-cd ancgis/application
-source .env # Set the env variables
-cd ancgis/database
-/bin/bash ../shell/populate-db.sh
+vagrant provision --provision-with deploy
+```
+
+#### 8- Provisionnement de la base de données
+```
+vagrant provision --provision-with populate-db
 ```
 
 Note:
@@ -56,19 +59,23 @@ Note:
 - La base de donnée peut être consultée en ligne via un dba sur le site de mlab.com (lien disponible sur le site d'heroku),
 - Une version de mongo supérieure à la version 3 est requise.
 
-## Exemple pour tester l'application localement
+## Déboguer
+
+#### Se connecter à la machine virtuelle
+
 ```
-cd ancgis/application
-npm install
-source .env # Set the env variables
-heroku local web
+vagrant ssh
+```
+```
+ssh -x vagrant@192.168.50.25
 ```
 
-## Exemple de fichier .env
+#### Consulter les logs
 ```
-export MONGODB_DBUSER="mlabdbuser"
-export MONGODB_DBPASSWORD="mlabdbpassword"
-export MONGODB_SHORTURI="mlabhost:mlabport/database"
-export MONGODB_URI="mongodb://$MONGODB_DBUSER:$MONGODB_DBPASSWORD@$MONGODB_SHORTURI"
-export MONGOLAB_URI="$MONGODB_URI"
+heroku logs --tail -a ancgis
+```
+
+#### Effacer le dépôt git de heroku
+```
+heroku repo:reset
 ```
