@@ -8,48 +8,46 @@ Vm pour le déploiement de AncGIS sur la plateforme Heroku
 vagrant up
 ```
 
-#### 2- Synchroniser les fichiers
-Dans une autre console (à laisser en arrière-plan) lancer la commande suivante:
-```
-vagrant rsync-auto
-```
-
-#### 3- Création de l'application via heroku
-Cela ne doit être fait qu'une seule fois dans la vie de l'application.
+#### 2- Création de l'application via heroku
+**Note importante:** Cela ne doit être fait qu'une seule fois dans la vie de l'application.
 ```
 vagrant provision --provision-with create
 ```
 
-#### 4- Mise à jour des sources
+#### 3- Mise à jour des sources
 ```
 vagrant provision --provision-with update-src
 ```
 
-#### 5- Configurer les variables d'environnement (fichier .env)
+#### 4- Configurer les variables d'environnement (fichier .env)
 - Créer des fichiers .env à partir des fichiers .env.dist dans les répertoires suivants (ou vérifier qu'ils soient à jour):
-  - ~/ancgis/application/
-  - ~/ancgis/shell/
-- Editer le fichier "~/ancgis/.gitignore" et supprimer la ligne suivante:
-  - /application/.env
+  - ancgis/
+  - ancdb/shell/
+- Editer le fichier "ancgis/.gitignore" et supprimer la ligne suivante:
+  - /.env
 - Commiter le fichier sur la branche master afin de le pousser dans le repository de heroku:
 ```
-cd ~/ancgis
-git add application/.env
+vagrant ssh
+```
+```
+cd /var/www/ancgis/sources
+git add .env
 git status
 git commit -am "fichier .env"
 ```
 
-#### 6- Tester l'application localement
+#### 5- Tester l'application localement
+base ready ?
 ```
 vagrant provision --provision-with test
 ```
 
-#### 7- Déploiement de l'application sur Heroku
+#### 6- Déploiement de l'application sur Heroku
 ```
 vagrant provision --provision-with deploy
 ```
 
-#### 8- Provisionnement de la base de données
+#### 7- Provisionnement de la base de données
 ```
 vagrant provision --provision-with populate-db
 ```
@@ -66,8 +64,9 @@ Note:
 ```
 vagrant ssh
 ```
+ou
 ```
-ssh -x vagrant@192.168.50.25
+ssh -Y vagrant@192.168.50.25
 ```
 
 #### Consulter les logs

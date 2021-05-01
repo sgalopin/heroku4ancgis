@@ -47,6 +47,8 @@ Vagrant.configure("2") do |config|
 
   # Disable the default root
   config.vm.synced_folder ".", "/vagrant", disabled: true
+  config.vm.synced_folder "./ancgis", "/var/www/ancgis/sources", create: true, owner: "vagrant", group: "vagrant"
+  config.vm.synced_folder "./ancdb", "/var/www/ancdb/sources", create: true, owner: "vagrant", group: "vagrant"
 
   # Provider-specific configuration so you can fine-tune various
   # backing providers for Vagrant. These expose provider-specific options.
@@ -103,13 +105,66 @@ Vagrant.configure("2") do |config|
 	  curl https://cli-assets.heroku.com/install.sh | sh # It contains its own node.js
     heroku plugins:install heroku-repo # Install the Heroku Repo plugin (useful to reset the git remote repo).
 
-    # Git
-	  apt-get install -y git
-    cd ~ && git clone https://github.com/sgalopin/ancgis.git
-    cd ~/ancgis
+    # Firefox
+    sudo apt install -y firefox # required by heroku login
+    # sudo apt-get install -y xauth ? required by X11 forwarding
+    # export DISPLAY=:0.0 ? required by X11 forwarding
+
+    # Sources
+
+    apt-get install -y git
+    # AncGIS
+    rm -rdf /var/www/ancgis/sources/* # Required in case of previous VM build
+    git clone -b develop https://github.com/sgalopin/ancgis.git /home/vagrant/ancgis # Sources can not be cloned directly into a synchronized folder
+    mkdir -p /var/www/ancgis/sources
+    cp -fa /home/vagrant/ancgis/. /var/www/ancgis/sources # -f option required in case of previous VM build
+    rm -rdf /home/vagrant/ancgis
+    echo 'PATH="$PATH:/var/www/ancgis/node_modules/.bin"' >> /home/vagrant/.profile # Required by the run scripts of package.json
+    # Solves permission issue
+    chgrp -R vagrant /var/www/ancgis
+    chmod -R g+w /var/www/ancgis
+    cd /var/www/ancgis/sources
     git remote add heroku https://git.heroku.com/ancgis.git # Can also be done via the heroku's "create" command
     git remote set-url --push origin no_push
 
+    # AncDB
+    rm -rdf /var/www/ancdb/sources/* # Required in case of previous VM build
+    git clone -b develop https://github.com/sgalopin/ancdb.git /home/vagrant/ancdb # Sources can not be cloned directly into a synchronized folder
+    mkdir -p /var/www/ancdb/sources
+    cp -fa /home/vagrant/ancdb/. /var/www/ancdb/sources # -f option required in case of previous VM build
+    rm -rdf /home/vagrant/ancdb
+    echo 'PATH="$PATH:/var/www/ancdb/node_modules/.bin"' >> /home/vagrant/.profile # Required by the run scripts of package.json
+    # Solves permission issue
+    chgrp -R vagrant /var/www/ancdb
+    chmod -R g+w /var/www/ancdb
+    cd /var/www/ancdb/sources
+    git remote set-url --push origin no_push
+
+  SHELL
+
+  # Provision "npm-install"
+  config.vm.provision "npm-install", type: "shell", privileged: false,  inline: <<-SHELL
+    # AncGIS
+    # Make the .env file
+    cp /var/www/ancgis/sources/.env.dist /var/www/ancgis/sources/.env
+    # Install the node_modules outside of the synced folder
+    cp /var/www/ancgis/sources/package.json /var/www/ancgis
+    cp /var/www/ancgis/sources/package-lock.json /var/www/ancgis
+    cd /var/www/ancgis && npm install
+    rm /var/www/ancgis/package.json
+    rm /var/www/ancgis/package-lock.json
+    # Build the package (node_modules/.bin must be into the PATH)
+    cd /var/www/ancgis/sources && npm run build
+
+    # AncDB
+    # Make the .env file
+    cp /var/www/ancdb/sources/shell/.env.dist /var/www/ancdb/sources/shell/.env
+    # Install the node_modules outside of the synced folder
+    cp /var/www/ancdb/sources/package.json /var/www/ancdb
+    cp /var/www/ancdb/sources/package-lock.json /var/www/ancdb
+    cd /var/www/ancdb && npm install
+    rm /var/www/ancdb/package.json
+    rm /var/www/ancdb/package-lock.json
   SHELL
 
   # The following provisions are only run when called explicitly
@@ -125,9 +180,9 @@ Vagrant.configure("2") do |config|
 
     # Provision "test"
     config.vm.provision "test", type: "shell", privileged: false, inline: <<-SHELL
-      cd ~/ancgis/application && npm install && npm run build
+      cd /var/www/ancgis/sources
       # Get the MONGODB_URI env variable
-      source ~/ancgis/application/.env
+      source /var/www/ancgis/sources/.env
       # Set the MONGOLAB_URI env variable for heroku
       MONGOLAB_URI="$MONGODB_URI"
       heroku local web
@@ -135,21 +190,22 @@ Vagrant.configure("2") do |config|
 
     # Provision "populate-db"
     config.vm.provision "populate-db", type: "shell", privileged: false, inline: <<-SHELL
-      /bin/bash ~/ancgis/shell/populate-db.sh
+      /bin/bash /var/www/ancdb/sources/shell/populate-db.sh
     SHELL
 
     # Provision "deploy"
     config.vm.provision "deploy", type: "shell", privileged: false, inline: <<-SHELL
-      cd ~/ancgis
+      cd /var/www/ancgis/sources
       git fetch origin
       git pull
-      git subtree push --prefix application heroku master
+      heroku login
+      git push -f heroku master
       heroku open -a ancgis # Ouvre le navigateur à l'adresse https://ancgis.herokuapp.com
     SHELL
 
-    # Provision "deploy"
+    # Provision "update-src"
     config.vm.provision "update-src", type: "shell", privileged: false, inline: <<-SHELL
-      cd ~/ancgis
+      cd /var/www/ancgis/sources
       git fetch origin
       git pull
     SHELL
